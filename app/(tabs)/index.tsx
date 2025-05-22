@@ -54,7 +54,7 @@ export default function HomeScreen() {
       
       {/* Lua na lateral direita */}
       <Image
-        source={require('@/assets/images/unsplash_wKlqqfNTLsI.png')}
+        source={require('../../assets/images/unsplash_wKlqqfNTLsI.png')}
         style={styles.moonImage}
         contentFit="contain"
         contentPosition={{right: 0}}
@@ -175,12 +175,13 @@ const styles = StyleSheet.create({
   // Estilos da lua
   moonImage: {
     position: 'absolute',
-    right: -120,
-    top: 150,
-    width: 450,
-    height: 700,
-    opacity: 0.8,
+    right: -80,
+    bottom: 0,
+    width: width * 0.9,
+    height: height * 0.7,
+    opacity: 1,
     backgroundColor: 'transparent',
-    zIndex: -1
+    zIndex: 0,
+    elevation: 0
   }
 });

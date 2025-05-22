@@ -1,10 +1,10 @@
-import { Image } from 'expo-image';
-import { StyleSheet, Text, View, TouchableOpacity, Modal, TextInput, FlatList, Platform, Dimensions, ImageBackground, Alert } from 'react-native';
-import React, { useState, useEffect } from 'react';
+import { MajorMonoDisplay_400Regular, useFonts } from '@expo-google-fonts/major-mono-display';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useFonts, MajorMonoDisplay_400Regular } from '@expo-google-fonts/major-mono-display';
-
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import React, { useEffect, useState } from 'react';
+import { Alert, Dimensions, FlatList, ImageBackground, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View, ActivityIndicator } from 'react-native';
+import { planetService } from '../../services/api';
 
 // Obter dimensões da tela para responsividade
 const { width, height } = Dimensions.get('window');
@@ -17,6 +17,30 @@ interface PlanetItem {
   image: string;
   imageUri?: string; // URI para imagens enviadas pelo usuário
 }
+
+// Tipo para os objetos de planeta da API
+interface ApiPlanetItem {
+  id: number;
+  nome: string;
+  curiosidade: string;
+  imagemUrl: string;
+}
+
+// Função para converter objeto da API para o formato local
+const mapApiPlanetToLocal = (apiPlanet: ApiPlanetItem): PlanetItem => ({
+  id: apiPlanet.id.toString(),
+  name: apiPlanet.nome,
+  curiosity: apiPlanet.curiosidade,
+  image: 'adaptive-icon',
+  imageUri: apiPlanet.imagemUrl
+});
+
+// Função para converter objeto local para o formato da API
+const mapLocalPlanetToApi = (planet: PlanetItem): Omit<ApiPlanetItem, 'id'> => ({
+  nome: planet.name,
+  curiosidade: planet.curiosity,
+  imagemUrl: planet.imageUri || ''
+});
 
 // Imagens para os planetas
 const getPlanetImage = (imageName: string) => {
@@ -40,47 +64,114 @@ export default function PlanetExploreScreen() {
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   
+  // Estado para indicar carregamento
+  const [loading, setLoading] = useState(false);
+  
+  // Estado para controlar se estamos usando API ou AsyncStorage
+  const [isUsingApi, setIsUsingApi] = useState(true);
+  
   // Estados para formulários
   const [currentPlanet, setCurrentPlanet] = useState<PlanetItem | null>(null);
   const [newPlanetName, setNewPlanetName] = useState('');
   const [newPlanetCuriosity, setNewPlanetCuriosity] = useState('');
   const [newPlanetImageUri, setNewPlanetImageUri] = useState<string | null>(null);
+  
+  // Função para fechar o teclado
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
+  };
 
-  // Carregar dados do localStorage ao iniciar
+  // Carregar dados do localStorage ao iniciar e configurar listeners do teclado
   useEffect(() => {
     loadPlanets();
+    
+    // Adicionar listeners para eventos do teclado
+    const keyboardDidShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        // Ajustar a interface quando o teclado aparecer
+      }
+    );
+    
+    const keyboardDidHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        // Ajustar a interface quando o teclado desaparecer
+      }
+    );
+    
+    // Limpar listeners quando o componente for desmontado
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
   }, []);
 
-  // Função para carregar os planetas do AsyncStorage
+  // Função para carregar os planetas (da API ou do AsyncStorage)
   const loadPlanets = async () => {
+    setLoading(true);
     try {
-      const storedPlanets = await AsyncStorage.getItem('planets');
-      
-      if (storedPlanets) {
-        setPlanets(JSON.parse(storedPlanets));
+      if (isUsingApi) {
+        // Carregar da API
+        const apiPlanets = await planetService.getAllPlanets();
+        const mappedPlanets = apiPlanets.map(mapApiPlanetToLocal);
+        setPlanets(mappedPlanets);
       } else {
-        // Se não houver dados salvos, use os dados iniciais
-        await AsyncStorage.setItem('planets', JSON.stringify(initialPlanets));
-        setPlanets(initialPlanets);
+        // Carregar do AsyncStorage (modo offline)
+        const storedPlanets = await AsyncStorage.getItem('planets');
+        
+        if (storedPlanets) {
+          setPlanets(JSON.parse(storedPlanets));
+        } else {
+          // Se não houver dados salvos, use os dados iniciais
+          await AsyncStorage.setItem('planets', JSON.stringify(initialPlanets));
+          setPlanets(initialPlanets);
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar planetas:', error);
+      Alert.alert(
+        'Erro de Conexão', 
+        'Não foi possível conectar ao servidor. Deseja usar o modo offline?',
+        [
+          {text: 'Não', style: 'cancel'},
+          {text: 'Sim', onPress: () => {
+            setIsUsingApi(false);
+            loadPlanets(); // Tentar carregar do AsyncStorage
+          }}
+        ]
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   // Função para selecionar imagem do dispositivo
-  const pickImage = () => {
-    // Exibir alerta para informar que a funcionalidade está em desenvolvimento
-    Alert.alert(
-      "Selecionar Imagem", 
-      "A função de upload de imagens está em desenvolvimento. Por enquanto, será usada a imagem padrão.",
-      [
-        {
-          text: "OK",
-          onPress: () => console.log("Alerta fechado")
-        }
-      ]
-    );
+  const pickImage = async () => {
+    try {
+      // Solicitar permissões da câmera/galeria (necessário para alguns dispositivos)
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permissão negada', 'Precisamos de permissão para acessar suas imagens.');
+        return;
+      }
+
+      // Abrir o seletor de imagem
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1], // Manter proporção quadrada para consistência
+        quality: 0.7, // Reduzir qualidade para economizar espaço
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setNewPlanetImageUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Erro ao selecionar imagem:', error);
+      Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
+    }
   };
 
   // Função para adicionar um novo planeta
@@ -91,17 +182,28 @@ export default function PlanetExploreScreen() {
     }
     
     const newPlanet: PlanetItem = {
-      id: Date.now().toString(),
+      id: Date.now().toString(), // Será substituído pelo ID gerado pela API
       name: newPlanetName,
       curiosity: newPlanetCuriosity || 'Nenhuma curiosidade adicionada.',
       image: 'adaptive-icon',
-      // No futuro, aqui será armazenada a URI da imagem selecionada
+      imageUri: newPlanetImageUri || undefined, // Incluir a URI da imagem se disponível
     };
     
-    const updatedPlanets = [...planets, newPlanet];
+    setLoading(true);
     try {
-      await AsyncStorage.setItem('planets', JSON.stringify(updatedPlanets));
-      setPlanets(updatedPlanets);
+      if (isUsingApi) {
+        // Salvar na API
+        const apiPlanetData = mapLocalPlanetToApi(newPlanet);
+        const savedPlanet = await planetService.createPlanet(apiPlanetData);
+        const mappedPlanet = mapApiPlanetToLocal(savedPlanet);
+        setPlanets([...planets, mappedPlanet]);
+      } else {
+        // Salvar no AsyncStorage (modo offline)
+        const updatedPlanets = [...planets, newPlanet];
+        await AsyncStorage.setItem('planets', JSON.stringify(updatedPlanets));
+        setPlanets(updatedPlanets);
+      }
+      
       setNewPlanetName('');
       setNewPlanetCuriosity('');
       setNewPlanetImageUri(null);
@@ -109,6 +211,8 @@ export default function PlanetExploreScreen() {
     } catch (error) {
       console.error('Erro ao adicionar planeta:', error);
       Alert.alert('Erro', 'Não foi possível salvar o planeta.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -116,35 +220,77 @@ export default function PlanetExploreScreen() {
   const updatePlanet = async () => {
     if (!currentPlanet || newPlanetCuriosity.trim() === '') return;
     
-    const updatedPlanets = planets.map(planet => {
-      if (planet.id === currentPlanet.id) {
-        return {
-          ...planet,
-          curiosity: newPlanetCuriosity,
-        };
-      }
-      return planet;
-    });
+    const updatedPlanet = {
+      ...currentPlanet,
+      curiosity: newPlanetCuriosity,
+      imageUri: newPlanetImageUri || currentPlanet.imageUri, // Atualizar a imagem se uma nova foi selecionada
+    };
     
+    setLoading(true);
     try {
-      await AsyncStorage.setItem('planets', JSON.stringify(updatedPlanets));
-      setPlanets(updatedPlanets);
+      if (isUsingApi) {
+        // Atualizar na API
+        const apiPlanetData = mapLocalPlanetToApi(updatedPlanet);
+        // Garantir que o ID seja um número válido para a API
+        const numericId = Number(currentPlanet.id);
+        if (isNaN(numericId)) {
+          throw new Error('ID inválido');
+        }
+        await planetService.updatePlanet(numericId, apiPlanetData);
+        
+        // Atualizar a lista local
+        const updatedPlanets = planets.map(planet => 
+          planet.id === currentPlanet.id ? updatedPlanet : planet
+        );
+        setPlanets(updatedPlanets);
+      } else {
+        // Atualizar no AsyncStorage (modo offline)
+        const updatedPlanets = planets.map(planet => 
+          planet.id === currentPlanet.id ? updatedPlanet : planet
+        );
+        await AsyncStorage.setItem('planets', JSON.stringify(updatedPlanets));
+        setPlanets(updatedPlanets);
+      }
+      
       setCurrentPlanet(null);
       setNewPlanetCuriosity('');
+      setNewPlanetImageUri(null);
       setEditModalVisible(false);
     } catch (error) {
       console.error('Erro ao atualizar planeta:', error);
+      Alert.alert('Erro', 'Não foi possível atualizar o planeta.');
+    } finally {
+      setLoading(false);
     }
   };
 
   // Função para excluir um planeta
   const deletePlanet = async (id: string) => {
-    const updatedPlanets = planets.filter(planet => planet.id !== id);
+    setLoading(true);
     try {
-      await AsyncStorage.setItem('planets', JSON.stringify(updatedPlanets));
-      setPlanets(updatedPlanets);
+      if (isUsingApi) {
+        // Excluir da API
+        // Garantir que o ID seja um número válido para a API
+        const numericId = Number(id);
+        if (isNaN(numericId)) {
+          throw new Error('ID inválido');
+        }
+        await planetService.deletePlanet(numericId);
+        
+        // Atualizar a lista local
+        const updatedPlanets = planets.filter(planet => planet.id !== id);
+        setPlanets(updatedPlanets);
+      } else {
+        // Excluir do AsyncStorage (modo offline)
+        const updatedPlanets = planets.filter(planet => planet.id !== id);
+        await AsyncStorage.setItem('planets', JSON.stringify(updatedPlanets));
+        setPlanets(updatedPlanets);
+      }
     } catch (error) {
       console.error('Erro ao excluir planeta:', error);
+      Alert.alert('Erro', 'Não foi possível excluir o planeta.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -152,6 +298,7 @@ export default function PlanetExploreScreen() {
   const openEditModal = (planet: PlanetItem) => {
     setCurrentPlanet(planet);
     setNewPlanetCuriosity(planet.curiosity);
+    setNewPlanetImageUri(planet.imageUri || null);
     setEditModalVisible(true);
   };
   
@@ -164,6 +311,7 @@ export default function PlanetExploreScreen() {
             source={item.imageUri ? { uri: item.imageUri } : getPlanetImage(item.image)}
             style={styles.planetImage}
             contentFit="cover"
+            contentPosition="center"
           />
         </View>
         
@@ -199,7 +347,16 @@ export default function PlanetExploreScreen() {
     );
   };
 
-  // Se as fontes ainda estão carregando, mostra uma tela de carregamento
+  const toggleApiMode = () => {
+    const newMode = !isUsingApi;
+    setIsUsingApi(newMode);
+    Alert.alert(
+      'Modo alterado', 
+      `Agora você está no modo ${newMode ? 'online' : 'offline'}.`,
+      [{ text: 'OK', onPress: () => loadPlanets() }]
+    );
+  };
+
   if (!fontsLoaded) {
     return (
       <View style={styles.background}>
@@ -208,28 +365,57 @@ export default function PlanetExploreScreen() {
     );
   }
 
-  // Renderiza a interface principal
   return (
     <View style={styles.container}>
-      <ImageBackground 
-        source={require('../../assets/images/1_VqSGgUTTUutNfcKbb7ed9w.gif')} 
+      <ImageBackground
+        source={require('../../assets/images/1_VqSGgUTTUutNfcKbb7ed9w.gif')}
         style={styles.background}
         resizeMode="cover"
       >
+        {/* Conteúdo principal */}
         {/* Header com logo e botão de adicionar */}
         <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Text style={styles.logoTextWhite}>s</Text>
-            <Text style={styles.logoTextGray}>pace</Text>
-            <Text style={styles.logoTextPurple}>X</Text>
+          <View>
+            <Text style={styles.headerTitle}>Explorar Planetas</Text>
           </View>
-          
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setAddModalVisible(true)}
-          >
-            <Text style={styles.addButtonText}>Adicionar</Text>
-          </TouchableOpacity>
+          <View style={styles.headerButtons}>
+            {/* Botão para alternar entre modo online/offline */}
+            <TouchableOpacity 
+              style={[styles.modeButton, isUsingApi ? styles.onlineButton : styles.offlineButton]}
+              onPress={toggleApiMode}
+            >
+              <Text style={styles.modeButtonText}>{isUsingApi ? 'Online' : 'Offline'}</Text>
+            </TouchableOpacity>
+            
+            {/* Botão para adicionar planeta */}
+            <TouchableOpacity 
+              style={styles.addButton}
+              onPress={() => {
+                setNewPlanetName('');
+                setNewPlanetCuriosity('');
+                setNewPlanetImageUri(null);
+                setAddModalVisible(true);
+              }}
+            >
+              <Text style={styles.addButtonText}>+</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        {/* Indicador de carregamento */}
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#FFFFFF" />
+          </View>
+        )}
+        
+        {/* Lua posicionada com responsividade */}
+        <View style={styles.moonContainer}>
+          <Image
+            source={require('../../assets/images/1_VqSGgUTTUutNfcKbb7ed9w.gif')}
+            style={styles.moon}
+            contentFit="contain"
+          />
         </View>
 
         {/* Lista de planetas */}
@@ -241,85 +427,114 @@ export default function PlanetExploreScreen() {
         />
       </ImageBackground>
 
-      {/* Modal para adicionar novo planeta */}
+      {/* Modal para adicionar planeta */}
       <Modal
         animationType="slide"
         transparent={true}
         visible={addModalVisible}
-        onRequestClose={() => setAddModalVisible(false)}
+        onRequestClose={() => {
+          setAddModalVisible(false);
+          Keyboard.dismiss();
+        }}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Adicionar Novo Planeta</Text>
-            
-            <View style={styles.formGroup}>
-              <Text style={styles.modalLabel}>Nome do Planeta:</Text>
-              <TextInput
-                style={styles.input}
-                value={newPlanetName}
-                onChangeText={setNewPlanetName}
-                placeholder="Ex: Marte"
-                placeholderTextColor="rgba(255, 255, 255, 0.5)"
-              />
-            </View>
-            
-            <View style={styles.formGroup}>
-              <Text style={styles.modalLabel}>Curiosidade:</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={newPlanetCuriosity}
-                onChangeText={setNewPlanetCuriosity}
-                placeholder="Ex: Marte tem a montanha mais alta do sistema solar"
-                placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                multiline={true}
-                numberOfLines={3}
-              />
-            </View>
-            
-            <View style={styles.formGroup}>
-              <Text style={styles.modalLabel}>Imagem:</Text>
-              <TouchableOpacity 
-                style={styles.imagePickerButton}
-                onPress={pickImage}
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{flex: 1}}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalContainer}>
+              <ScrollView 
+                contentContainerStyle={{flexGrow: 1, justifyContent: 'center'}}
+                keyboardShouldPersistTaps="handled"
               >
-                <View style={styles.imagePreview}>
-                  {newPlanetImageUri ? (
-                    <Image
-                      source={{ uri: newPlanetImageUri }}
-                      style={{ width: '100%', height: '100%', borderRadius: 40 }}
-                      contentFit="cover"
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Adicionar Novo Planeta</Text>
+                  
+                  <View style={styles.formGroup}>
+                    <Text style={styles.modalLabel}>Nome do Planeta:</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={newPlanetName}
+                      onChangeText={setNewPlanetName}
+                      placeholder="Ex: Marte"
+                      placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                      returnKeyType="done"
+                      onSubmitEditing={() => {
+                        Keyboard.dismiss();
+                      }}
+                      blurOnSubmit={true}
                     />
-                  ) : (
-                    <View style={styles.imagePickerOverlay}>
-                      <Text style={styles.imagePickerText}>Selecionar imagem</Text>
-                    </View>
-                  )}
+                  </View>
+                  
+                  <View style={styles.formGroup}>
+                    <Text style={styles.modalLabel}>Curiosidade:</Text>
+                    <TextInput
+                      style={[styles.input, styles.textArea]}
+                      value={newPlanetCuriosity}
+                      onChangeText={setNewPlanetCuriosity}
+                      placeholder="Ex: Marte tem a montanha mais alta do sistema solar"
+                      placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                      multiline={false} // Alterado para false para garantir que o retorno feche o teclado
+                      numberOfLines={3}
+                      returnKeyType="done"
+                      onSubmitEditing={() => {
+                        Keyboard.dismiss();
+                      }}
+                      blurOnSubmit={true}
+                    />
+                  </View>
+                  
+                  <View style={styles.formGroup}>
+                    <Text style={styles.modalLabel}>Imagem:</Text>
+                    <TouchableOpacity 
+                      style={styles.imagePickerButton}
+                      onPress={pickImage}
+                    >
+                      <View style={styles.imagePreview}>
+                        {newPlanetImageUri ? (
+                          <Image
+                            source={{ uri: newPlanetImageUri }}
+                            style={{ width: '100%', height: '100%', borderRadius: 10 }}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={styles.imagePickerOverlay}>
+                            <Text style={styles.imagePickerText}>Selecionar imagem</Text>
+                          </View>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <View style={styles.buttonRow}>
+                    <TouchableOpacity
+                      style={[styles.button, styles.cancelButton]}
+                      onPress={() => {
+                        setNewPlanetName('');
+                        setNewPlanetCuriosity('');
+                        setNewPlanetImageUri(null);
+                        setAddModalVisible(false);
+                        Keyboard.dismiss();
+                      }}
+                    >
+                      <Text style={styles.buttonText}>Cancelar</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      style={[styles.button, styles.confirmButton]}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        addPlanet();
+                      }}
+                    >
+                      <Text style={styles.buttonText}>Adicionar</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </TouchableOpacity>
+              </ScrollView>
             </View>
-            
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={[styles.button, styles.cancelButton]}
-                onPress={() => {
-                  setNewPlanetName('');
-                  setNewPlanetCuriosity('');
-                  setNewPlanetImageUri(null);
-                  setAddModalVisible(false);
-                }}
-              >
-                <Text style={styles.buttonText}>Cancelar</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.button, styles.confirmButton]}
-                onPress={addPlanet}
-              >
-                <Text style={styles.buttonText}>Adicionar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Modal para editar planeta */}
@@ -327,54 +542,105 @@ export default function PlanetExploreScreen() {
         animationType="slide"
         transparent={true}
         visible={editModalVisible}
-        onRequestClose={() => setEditModalVisible(false)}
+        onRequestClose={() => {
+          setEditModalVisible(false);
+          Keyboard.dismiss();
+        }}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            {currentPlanet && (
-              <>
-                <Text style={styles.modalTitle}>Editar {currentPlanet.name}</Text>
-                
-                <View style={styles.formGroup}>
-                  <Text style={styles.modalLabel}>Curiosidade:</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={newPlanetCuriosity}
-                    onChangeText={setNewPlanetCuriosity}
-                    placeholder="Adicione uma curiosidade"
-                    placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                    multiline={true}
-                    numberOfLines={3}
-                  />
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{flex: 1}}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalContainer}>
+              <ScrollView 
+                contentContainerStyle={{flexGrow: 1, justifyContent: 'center'}}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={styles.modalContent}>
+                  {currentPlanet && (
+                    <>
+                      <Text style={styles.modalTitle}>Editar {currentPlanet.name}</Text>
+                      
+                      {/* Seleção de imagem */}
+                      <View style={styles.formGroup}>
+                        <Text style={styles.modalLabel}>Imagem do Planeta:</Text>
+                        <TouchableOpacity 
+                          style={styles.imagePickerButton} 
+                          onPress={pickImage}
+                        >
+                          <View style={styles.imagePreview}>
+                            {newPlanetImageUri ? (
+                              <Image 
+                                source={{ uri: newPlanetImageUri }} 
+                                style={{ width: '100%', height: '100%' }} 
+                                contentFit="cover"
+                              />
+                            ) : (
+                              <View style={styles.imagePickerOverlay}>
+                                <Text style={styles.imagePickerText}>Toque para selecionar imagem</Text>
+                              </View>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      </View>
+                      
+                      <View style={styles.formGroup}>
+                        <Text style={styles.modalLabel}>Curiosidade:</Text>
+                        <TextInput
+                          style={[styles.input, styles.textArea]}
+                          value={newPlanetCuriosity}
+                          onChangeText={setNewPlanetCuriosity}
+                          placeholder="Adicione uma curiosidade"
+                          placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                          multiline={false} // Alterado para false para garantir que o retorno feche o teclado
+                          numberOfLines={3}
+                          returnKeyType="done"
+                          onSubmitEditing={() => {
+                            Keyboard.dismiss();
+                          }}
+                          blurOnSubmit={true}
+                        />
+                      </View>
+                      
+                      
+                      <View style={styles.buttonRow}>
+                        <TouchableOpacity
+                          style={[styles.button, styles.cancelButton]}
+                          onPress={() => {
+                            setCurrentPlanet(null);
+                            setNewPlanetCuriosity('');
+                            setNewPlanetImageUri(null);
+                            setEditModalVisible(false);
+                            // Fecha o teclado
+                            Keyboard.dismiss();
+                          }}
+                        >
+                          <Text style={styles.buttonText}>Cancelar</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                          style={[styles.button, styles.confirmButton]}
+                          onPress={() => {
+                            // Fecha o teclado antes de salvar
+                            Keyboard.dismiss();
+                            updatePlanet();
+                          }}
+                        >
+                          <Text style={styles.buttonText}>Salvar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  )}
                 </View>
-                
-                <View style={styles.buttonRow}>
-                  <TouchableOpacity
-                    style={[styles.button, styles.cancelButton]}
-                    onPress={() => {
-                      setCurrentPlanet(null);
-                      setNewPlanetCuriosity('');
-                      setEditModalVisible(false);
-                    }}
-                  >
-                    <Text style={styles.buttonText}>Cancelar</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[styles.button, styles.confirmButton]}
-                    onPress={updatePlanet}
-                  >
-                    <Text style={styles.buttonText}>Salvar</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
-        </View>
+              </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   // Estilos de fundo e container
@@ -386,20 +652,66 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  safeArea: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
+    marginBottom: 20,
     paddingTop: 40,
-    paddingBottom: 15,
-    backgroundColor: '#000000',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(156, 39, 176, 0.3)',
   },
-  logoContainer: {
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontFamily: 'MajorMonoDisplay_400Regular',
+  },
+  headerButtons: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  modeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  onlineButton: {
+    backgroundColor: '#4CAF50',
+  },
+  offlineButton: {
+    backgroundColor: '#FF9800',
+  },
+  modeButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  loadingContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 1000,
+  },
+  moonContainer: {
+    position: 'absolute',
+    right: -width * 0.2,
+    top: height * 0.05,
+    width: width * 0.5,
+    height: width * 0.5,
+    opacity: 0.8,
+  },
+  moon: {
+    width: '100%',
+    height: '100%',
   },
   logoTextWhite: {
     color: 'white',
@@ -447,9 +759,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(156, 39, 176, 0.3)',
   },
   planetImageContainer: {
-    width: 110,
-    height: '100%',
-    borderRadius: 15,
+    width: 120,
+    height: 120,
+    borderRadius: 8,
     borderWidth: 1,
     backgroundColor: 'rgba(50, 50, 50, 0.5)',
     justifyContent: 'center',
@@ -457,11 +769,12 @@ const styles = StyleSheet.create({
     marginRight: 15,
     marginLeft: -8,
     marginTop: -2,
+    overflow: 'hidden',
   },
   planetImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 120,
+    height: 120,
+    borderRadius: 8,
   },
   planetInfo: {
     flex: 1,
@@ -594,23 +907,42 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   imagePreview: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-  },
-  imagePickerOverlay: {
-    position: 'absolute',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    width: '100%',
-    height: '100%',
-    borderRadius: 50,
+    width: 100,
+    height: 100,
+    borderRadius: 10,
+    backgroundColor: 'rgba(50, 50, 50, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#9C27B0',
+  },
+  imagePickerOverlay: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(50, 50, 50, 0.7)',
   },
   imagePickerText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 10,
     textAlign: 'center',
-    padding: 5,
   },
+  
+  // Botão para fechar o teclado
+  keyboardDismissButton: {
+    backgroundColor: '#333333',
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  keyboardDismissText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  
+  // Estilos adicionais podem ser adicionados aqui se necessário
 });
