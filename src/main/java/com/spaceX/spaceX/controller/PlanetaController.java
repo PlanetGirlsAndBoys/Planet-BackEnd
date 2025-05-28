@@ -18,7 +18,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RestController
 @RequestMapping("/planetas")
 @Tag(name = "Planetas", description = "Operações relacionadas aos planetas")
-@CrossOrigin(origins = "*")
 public class PlanetaController {
 
     @Autowired
