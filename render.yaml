@@ -9,7 +9,7 @@ services:
     startCommand: docker run -p 8080:8080 spacex-app
     envVars:
       - key: MYSQL_URL
-        value: jdbc:mysql://space-xyms.k.aivencloud.com:19164/defaultdb?useSSL=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
+        value: jdbc:mysql://space-xyms.k.aivencloud.com:19164/spaceX?useSSL=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
       - key: MYSQL_USERNAME
         value: avnadmin
       - key: MYSQL_PASSWORD
