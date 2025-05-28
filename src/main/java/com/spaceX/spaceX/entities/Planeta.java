@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 
 @Entity
 public class Planeta {
@@ -13,6 +14,9 @@ public class Planeta {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 	private String nomePlaneta;
+	
+	@Lob
+	@Column(columnDefinition = "LONGTEXT")
 	private String imgUrl;
 
 	@Column(length = 1000)

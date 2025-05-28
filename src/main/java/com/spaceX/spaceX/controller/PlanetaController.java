@@ -1,16 +1,14 @@
 package com.spaceX.spaceX.controller;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.cloudinary.Cloudinary;
-import com.cloudinary.utils.ObjectUtils;
 import com.spaceX.spaceX.entities.Planeta;
 import com.spaceX.spaceX.services.PlanetaService;
 
@@ -25,8 +23,42 @@ public class PlanetaController {
     @Autowired
     private PlanetaService planetaService;
 
-    @Autowired
-    private Cloudinary cloudinary;
+    @Operation(summary = "Upload de imagem")
+    @PostMapping("/imagem")
+    public ResponseEntity<String> uploadImagem(@RequestParam("imagem") MultipartFile imagem) {
+        try {
+            if (imagem == null || imagem.isEmpty()) {
+                return ResponseEntity.badRequest().body("Nenhuma imagem foi enviada");
+            }
+
+            // Verifica o tipo do arquivo
+            String contentType = imagem.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                return ResponseEntity.badRequest().body("O arquivo enviado não é uma imagem válida");
+            }
+
+            // Verifica o tamanho do arquivo (máximo 5MB)
+            if (imagem.getSize() > 5 * 1024 * 1024) {
+                return ResponseEntity.badRequest().body("A imagem deve ter no máximo 5MB");
+            }
+
+            // Converte a imagem para base64
+            byte[] imageBytes = imagem.getBytes();
+            String base64Image = Base64.getEncoder().encodeToString(imageBytes);
+            
+            // Adiciona o prefixo data:image para exibição no frontend
+            String imageData = "data:" + contentType + ";base64," + base64Image;
+
+            return ResponseEntity.ok(imageData);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Erro ao processar a imagem: " + e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Erro inesperado: " + e.getMessage());
+        }
+    }
 
     @Operation(summary = "Criar um novo planeta")
     @PostMapping("/criar")
@@ -68,20 +100,6 @@ public class PlanetaController {
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
-        }
-    }
-
-    @Operation(summary = "Upload de imagem")
-    @PostMapping("/imagem")
-    public ResponseEntity<String> uploadImagem(@RequestParam("imagem") MultipartFile imagem) {
-        try {
-            // Converte o MultipartFile para um Map que o Cloudinary pode usar
-            Map uploadResult = cloudinary.uploader().upload(imagem.getBytes(), ObjectUtils.emptyMap());
-            
-            // Retorna a URL da imagem do Cloudinary
-            return ResponseEntity.ok(uploadResult.get("url").toString());
-        } catch (IOException e) {
-            return ResponseEntity.badRequest().body("Erro ao salvar imagem: " + e.getMessage());
         }
     }
 }
