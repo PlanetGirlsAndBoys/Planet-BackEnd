@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.spaceX.spaceX.entities.Planeta;
 import com.spaceX.spaceX.repositories.PlanetaRepository;
@@ -20,20 +21,18 @@ public class PlanetaService {
 	private PlanetaRepository planetaRepository;
 
     // Método para salvar um novo planeta no banco de dados
+	@Transactional
 	public Planeta salvar(Planeta planeta) throws Exception {
+		if (planeta.getNomePlaneta() == null || planeta.getNomePlaneta().trim().isEmpty()) {
+			throw new Exception("Nome do planeta é obrigatório");
+		}
+		
 		Planeta existente = planetaRepository.findByNomePlaneta(planeta.getNomePlaneta());
-	    
-	    if(existente !=null) {
-	    	throw new Exception("Esse planeta já está cadastrado :(");
-	    }
-	    
-	    Planeta entityPlaneta = new Planeta();
-	      
-	    entityPlaneta.setDescricao(planeta.getDescricao());
-	    entityPlaneta.setImgUrl(planeta.getImgUrl());
-	    entityPlaneta.setNomePlaneta(planeta.getNomePlaneta());
-	    
-	    return planetaRepository.save(entityPlaneta);
+		if(existente != null) {
+			throw new Exception("Esse planeta já está cadastrado :(");
+		}
+		
+		return planetaRepository.save(planeta);
 	}
 
     // Método que retorna todos os planetas cadastrados no banco
@@ -47,6 +46,7 @@ public class PlanetaService {
     }
 
     // Método para atualizar os dados de um planeta existente
+    @Transactional
     public Planeta atualizar(Long id, Planeta novoPlaneta) {
         return planetaRepository.findById(id) // Busca o planeta pelo ID
             .map(planeta -> {
@@ -61,6 +61,7 @@ public class PlanetaService {
     }
 
     // Método para deletar um planeta pelo ID
+    @Transactional
     public void deletar(Long id) {
         if (!planetaRepository.existsById(id)) {
             // Se o planeta não existir, lança exceção
