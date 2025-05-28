@@ -16,7 +16,7 @@ public class Planeta {
 	private String nomePlaneta;
 	
 	@Lob
-	@Column(columnDefinition = "LONGTEXT")
+	@Column(columnDefinition = "MEDIUMTEXT")
 	private String imgUrl;
 
 	@Column(length = 1000)

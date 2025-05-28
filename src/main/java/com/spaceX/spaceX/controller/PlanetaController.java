@@ -1,5 +1,6 @@
 package com.spaceX.spaceX.controller;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
@@ -14,6 +15,8 @@ import com.spaceX.spaceX.services.PlanetaService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 
 @RestController
 @RequestMapping("/planetas")
@@ -62,9 +65,22 @@ public class PlanetaController {
 
     @Operation(summary = "Criar um novo planeta")
     @PostMapping("/criar")
-    public ResponseEntity<Planeta> criar(@RequestBody Planeta planeta) throws Exception {
-        Planeta salvo = planetaService.salvar(planeta);
-        return ResponseEntity.ok(salvo);
+    public ResponseEntity<?> criar(@RequestBody Planeta planeta) {
+        try {
+            if (planeta.getNomePlaneta() == null || planeta.getNomePlaneta().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Nome do planeta é obrigatório");
+            }
+
+            if (planeta.getImgUrl() != null && planeta.getImgUrl().length() > 16777215) { // Tamanho máximo do MEDIUMTEXT
+                return ResponseEntity.badRequest().body("Imagem muito grande. Por favor, use uma imagem menor.");
+            }
+
+            Planeta salvo = planetaService.salvar(planeta);
+            return ResponseEntity.ok(salvo);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Erro ao salvar planeta: " + e.getMessage());
+        }
     }
 
     @Operation(summary = "Listar todos os planetas")
