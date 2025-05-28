@@ -5,6 +5,8 @@ services:
     plan: free
     region: oregon
     healthCheckPath: /actuator/health
+    buildCommand: docker build -t spacex-app .
+    startCommand: docker run -p 8080:8080 spacex-app
     envVars:
       - key: MYSQL_URL
         value: jdbc:mysql://space-xyms.k.aivencloud.com:19164/defaultdb?useSSL=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
