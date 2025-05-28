@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: spacex
+    env: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: MYSQL_URL
+        value: jdbc:mysql://space-xyms.k.aivencloud.com:19164/defaultdb?useSSL=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - key: MYSQL_USERNAME
+        value: avnadmin
+      - key: MYSQL_PASSWORD
+        sync: false
+    autoDeploy: true 
