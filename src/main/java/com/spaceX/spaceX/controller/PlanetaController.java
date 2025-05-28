@@ -1,10 +1,13 @@
 package com.spaceX.spaceX.controller;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.spaceX.spaceX.entities.Planeta;
 import com.spaceX.spaceX.services.PlanetaService;
@@ -15,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RestController
 @RequestMapping("/planetas")
 @Tag(name = "Planetas", description = "Operações relacionadas aos planetas")
+@CrossOrigin(origins = "*")
 public class PlanetaController {
 
     @Autowired
@@ -60,6 +64,28 @@ public class PlanetaController {
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
+        }
+    }
+
+    @Operation(summary = "Upload de imagem")
+    @PostMapping("/imagem")
+    public ResponseEntity<String> uploadImagem(@RequestParam("imagem") MultipartFile imagem) {
+        try {
+            // Cria pasta se não existir
+            File pasta = new File("imagens");
+            if (!pasta.exists()) {
+                pasta.mkdir();
+            }
+
+            // Salva a imagem
+            String nomeArquivo = imagem.getOriginalFilename();
+            File arquivo = new File(pasta, nomeArquivo);
+            imagem.transferTo(arquivo);
+
+            // Retorna a URL da imagem
+            return ResponseEntity.ok("http://localhost:8081/imagens/" + nomeArquivo);
+        } catch (IOException e) {
+            return ResponseEntity.badRequest().body("Erro ao salvar imagem: " + e.getMessage());
         }
     }
 }
