@@ -55,7 +55,3 @@ A ideia é criar uma experiência divertida, flexível e educativa — afinal, c
 A documentação completa da API pode ser acessada via Swagger UI.
 
 ---
-
-## 🧠 Organização do Código
-
-### 📦 Front-End:
