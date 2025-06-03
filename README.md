@@ -35,6 +35,18 @@ A ideia é criar uma experiência divertida, flexível e educativa — afinal, c
 * API REST documentada com **Swagger**
 * Estrutura simples focada em operações CRUD
 
+### 🛠️ Tecnologias Utilizadas
+
+- **Java 21** – Versão moderna e robusta da linguagem  
+- **Spring Boot** – Framework para criação da API REST  
+- **Spring Data JPA** – Integração com banco de dados relacional  
+- **Maven** – Gerenciador de dependências e build  
+- **Swagger / Springdoc OpenAPI** – Documentação automática da API  
+- **CORS** – Permite integração com o front-end hospedado separadamente  
+- **Banco de Dados** – Configurável via `application.properties` (ex: PostgreSQL, H2, MySQL etc.)  
+
+---
+
 ### Endpoints disponíveis:
 
 * Criar planeta
