@@ -1,6 +1,6 @@
 # 🌌 Catálogo de Curiosidades Planetárias - Back-end
 
-![Universo](https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRc8VbRTkJbCTA0rQai2sdxjUlRnGFIrc43Qg&s)
+![Universo](https://netnature.wordpress.com/wp-content/uploads/2019/06/buraco-negro.gif?w=512&h=288)
 
 Bem-vindo ao repositório oficial do projeto **Catálogo de Curiosidades Planetárias**, desenvolvido com o objetivo de permitir que qualquer pessoa registre e gerencie planetas fictícios ou reais, com imagens e curiosidades únicas.
 
