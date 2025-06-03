@@ -18,15 +18,6 @@ Desenvolver uma aplicação mobile multiplataforma com React Native + Expo que p
 A ideia é criar uma experiência divertida, flexível e educativa — afinal, cada planeta pode carregar uma história diferente 🪐
 
 ---
-
-## 📱 Aplicativo Mobile
-
-* Desenvolvido com **React Native + Expo**
-* Usa **TypeScript** para maior organização e tipagem
-* Requisições HTTP com **Axios**
-* Testado em dispositivos reais via **Expo Go**
-* Estrutura modular com componentes reutilizáveis
-
 ### Funcionalidades:
 
 ✅ Inserir planeta com imagem personalizada
