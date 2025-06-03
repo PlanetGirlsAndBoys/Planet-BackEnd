@@ -1,4 +1,4 @@
-# 🌌 Catálogo de Curiosidades Planetárias
+# 🌌 Catálogo de Curiosidades Planetárias - Back-end
 
 ![Universo](https://media.giphy.com/media/LwIyvaNcnzsD6/giphy.gif)
 
