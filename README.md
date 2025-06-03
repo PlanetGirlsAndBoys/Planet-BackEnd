@@ -1,6 +1,6 @@
 # 🌌 Catálogo de Curiosidades Planetárias - Back-end
 
-![Universo](https://media.giphy.com/media/LwIyvaNcnzsD6/giphy.gif)
+![Universo](attachment:/mnt/data/download%20(1).jpg)
 
 Bem-vindo ao repositório oficial do projeto **Catálogo de Curiosidades Planetárias**, desenvolvido com o objetivo de permitir que qualquer pessoa registre e gerencie planetas fictícios ou reais, com imagens e curiosidades únicas.
 
